@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ArrayOfPackingListItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <PackingListItem>
+    <Carton>1-16</Carton>
+    <Description>Zabre PGPL4G Tex27 402 4000Y</Description>
+    <ColorNo>00010</ColorNo>
+    <QtyCone>120</QtyCone>
+    <TotalQtyCone>1920</TotalQtyCone>
+    <GrossWeight>15.82</GrossWeight>
+    <NetWeight>12.00</NetWeight>
+    <Size>54*36*30</Size>
+    <MemoNo>0821116286</MemoNo>
+  </PackingListItem>
+  <PackingListItem>
+    <Carton>17-41</Carton>
+    <Description>Zabre PKPL3G Tex60 202 3000Y</Description>
+    <ColorNo>00010</ColorNo>
+    <QtyCone>120</QtyCone>
+    <TotalQtyCone>3000</TotalQtyCone>
+    <GrossWeight>24.56</GrossWeight>
+    <NetWeight>20.40</NetWeight>
+    <Size>54*40*34</Size>
+    <MemoNo>0821116286</MemoNo>
+  </PackingListItem>
+</ArrayOfPackingListItem>
