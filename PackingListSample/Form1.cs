@@ -12,6 +12,7 @@ using iTextSharp.text.pdf;
 using PackingListSample;
 using Microsoft.Reporting.WinForms;
 using System.Data.SqlClient;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Window;
 
 namespace PackingListSample
 {
@@ -107,15 +108,18 @@ namespace PackingListSample
                 }
 
                 dgvOutput.DataSource = dtFinish;
-                DataTable dtWithRowID = AddRowIDColumn(dtFinish);
                 DataSet1 dataset = new DataSet1();
-                dataset = LoadData(dtWithRowID);
+                dataset = LoadData(dtFinish);
                 // Gán dữ liệu cho ReportViewer
                 reportViewer1.LocalReport.DataSources.Clear();
                 reportViewer1.LocalReport.ReportEmbeddedResource = "PackingListSample.PackingListReport.rdlc";
                 reportViewer1.LocalReport.DataSources.Add(new ReportDataSource("PackingListItem", dataset.Tables["PackingListItem"]));
                 reportViewer1.LocalReport.DataSources.Add(new ReportDataSource("PackingListData", dataset.PackingListData.AsEnumerable()));
-                reportViewer1.ZoomMode = ZoomMode.PageWidth;
+                reportViewer1.ZoomMode = ZoomMode.PageWidth; // Hiển thị full width trang
+                reportViewer1.SetDisplayMode(DisplayMode.PrintLayout); // Chế độ xem in ấn
+                reportViewer1.DocumentMapCollapsed = false; // Mở rộng document map nếu có
+                reportViewer1.ShowPageNavigationControls = true; // Hiển thị điều khiển chuyển trang
+                reportViewer1.ShowToolBar = true;
                 reportViewer1.RefreshReport();
                 index = 0;
             }
@@ -185,19 +189,6 @@ namespace PackingListSample
             DataTable dtcaculator = CaculatorBox(dt_WH_Box_Carton, dt_WH_Carton, dt_boxGroup, dt_Daima, quantity, boxgroup, colorno);
             return dtcaculator;
         }
-        //thêm 1 cột để phân trang
-        public DataTable AddRowIDColumn(DataTable dt)
-        {
-            DataTable newTable = dt.Copy();
-            newTable.Columns.Add("RowID", typeof(int)); 
-
-            for (int i = 0; i < newTable.Rows.Count; i++)
-            {
-                newTable.Rows[i]["RowID"] = i + 1;
-            }
-
-            return newTable;
-        }
         void LoadDataTemp()
         {
             dgvInput.Columns.Clear();
@@ -207,7 +198,7 @@ namespace PackingListSample
 
             Random rand = new Random();
 
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 10; i++)
             {
                 string item = "LELM5G" + i.ToString("D3"); // Định dạng 'iii' thành 3 chữ số (000, 001, ..., 019)
                 int quantity = rand.Next(100, 1000); // Random 3 chữ số (100 - 999)
@@ -220,19 +211,18 @@ namespace PackingListSample
         private DataTable CaculatorBox(DataTable dt_WH_Box_Carton, DataTable dt_WH_Carton, DataTable dt_ProductData, DataTable dt_Daima, int Quantity, string boxgroup, string colorno)
         {
             DataTable resultTable = new DataTable();
-            resultTable.Columns.Add("Carton", typeof(System.String));
-            resultTable.Columns.Add("PONoAndIONo", typeof(System.String));
-            resultTable.Columns.Add("Description", typeof(System.String));
-            resultTable.Columns.Add("ColorNo", typeof(System.String));
-            resultTable.Columns.Add("QtyCone", typeof(System.Int32));
-            resultTable.Columns.Add("TotalQtyCone", typeof(System.Int32));
-            resultTable.Columns.Add("GrossWeightPerCTN", typeof(System.Double));
-            resultTable.Columns.Add("NetWeightPerCTN", typeof(System.Double));
-            resultTable.Columns.Add("SizeCTN", typeof(System.String));
-            resultTable.Columns.Add("MemoNo", typeof(System.String));
+            resultTable.Columns.Add("Carton", typeof(string));
+            resultTable.Columns.Add("PONoAndIONo", typeof(string));
+            resultTable.Columns.Add("Description", typeof(string));
+            resultTable.Columns.Add("ColorNo", typeof(string));
+            resultTable.Columns.Add("QtyCone", typeof(int));
+            resultTable.Columns.Add("TotalQtyCone", typeof(int));
+            resultTable.Columns.Add("GrossWeightPerCTN", typeof(double));
+            resultTable.Columns.Add("NetWeightPerCTN", typeof(double));
+            resultTable.Columns.Add("SizeCTN", typeof(string));
+            resultTable.Columns.Add("MemoNo", typeof(string));
 
-            var productRow = dt_ProductData.AsEnumerable()
-                .FirstOrDefault(r => r.Field<string>("boxgroup") == boxgroup);
+            var productRow = dt_ProductData.AsEnumerable().FirstOrDefault(r => r.Field<string>("boxgroup") == boxgroup);
             if (productRow == null)
                 return resultTable;
 
@@ -240,107 +230,143 @@ namespace PackingListSample
             double coreWeight = Convert.ToDouble(productRow["CoreWeight"]);
             double boxWeight = Convert.ToDouble(productRow["BoxWeight"]);
 
-            var cartonDetails = dt_WH_Carton.AsEnumerable()
-                .ToDictionary(
-                    row => Convert.ToInt32(row["Carton"]),
-                    row => row["Size"].ToString()
-                );
-            var cartonWeightMapping = dt_WH_Carton.AsEnumerable()
-                .ToDictionary(
-                    row => Convert.ToInt32(row["Carton"]),
-                    row => Convert.ToDouble(row["CartonWeight"])
-                );
-            var filteredRows = dt_WH_Box_Carton.AsEnumerable()
-                .Where(row => row.Field<string>("BoxGroup") == boxgroup)
-                .OrderByDescending(row => Convert.ToInt32(row["Max_Box"]))
-                .ToList();
+            var cartonDetails = dt_WH_Carton.AsEnumerable().ToDictionary(
+                row => Convert.ToInt32(row["Carton"]),
+                row => row["Size"].ToString()
+            );
 
+            var cartonWeightMapping = dt_WH_Carton.AsEnumerable().ToDictionary(
+                row => Convert.ToInt32(row["Carton"]),
+                row => Convert.ToDouble(row["CartonWeight"])
+            );
+
+            var boxList = dt_WH_Box_Carton.AsEnumerable()
+            .Where(row => row.Field<string>("BoxGroup") == boxgroup)
+            .GroupBy(row => Convert.ToInt32(row["Carton"]))
+            .Select(group => new
+            {
+                Carton = group.Key,
+                MaxBox = group.Max(row => Convert.ToInt32(row["Max_Box"]) * 10),
+                MinBox = group.Min(row => Convert.ToInt32(row["Min_Box"]) * 10)
+            })
+            .OrderByDescending(x => x.MaxBox)
+            .ToList();
             int remainingQuantity = Quantity;
-            int currentCartonIndex = 0;
+            int index = 0;
+
             string dai = dt_Daima.Rows[0]["DAI"].ToString();
             string ysbh = dt_Daima.Rows[0]["YSBH"].ToString();
             string ma = dt_Daima.Rows[0]["MA"].ToString();
             string tex = dt_Daima.Rows[0]["TEX"].ToString();
             string brand = dt_Daima.Rows[0]["BRAND"].ToString();
-            while (remainingQuantity > 0 && currentCartonIndex < filteredRows.Count)
+            int maxBoxList = boxList.Max(x => x.MaxBox);
+            while (remainingQuantity > 0)
             {
-                var row = filteredRows[currentCartonIndex];
-                int carton = Convert.ToInt32(row["Carton"]);
-                int maxBox = Convert.ToInt32(row["Max_Box"]) * 10;
-                int minBox = Convert.ToInt32(row["Min_Box"]) * 10;
-                int partialCartonQuantity = 0;
-
-                // Case 1: Remaining quantity is between min and max
-                if (remainingQuantity >= minBox && remainingQuantity < maxBox)
+                int bestFit = 0;
+                int fullCarton = 0;
+                if (remainingQuantity >= maxBoxList)
                 {
-                    double cartonWeight = cartonWeightMapping.ContainsKey(carton)? cartonWeightMapping[carton]: 0;
-                    partialCartonQuantity = remainingQuantity % minBox;
-                    int fullCartons = remainingQuantity / minBox;
-                    int usedQuantity = fullCartons * minBox;
-                    double nwPerCarton = minBox * netWeight;
-                    double gwPerCarton = nwPerCarton + (12 * boxWeight) + (minBox * coreWeight) + cartonWeight;
+                    bestFit = maxBoxList;
+                    fullCarton = remainingQuantity / maxBoxList;
+                }
+                //nếu thuộc min của cái này và max của cái kia thì chọn cái này
+                else
+                {
+                    int carton1 = boxList.FirstOrDefault(x => x.MinBox >= remainingQuantity)?.Carton ?? 0;
+                    int carton2 = boxList.FirstOrDefault(x => x.MaxBox <= remainingQuantity)?.Carton ?? 0;
+                    if (carton1 == carton2)
+                    {
+                        bestFit = boxList.FirstOrDefault(x => x.MinBox <= remainingQuantity && x.MaxBox >= remainingQuantity)?.MaxBox ?? 0;
+                    }
+                    else
+                    {
+                        bestFit = boxList.FirstOrDefault(x => x.MinBox >= remainingQuantity)?.MaxBox ?? 0;
+                    }
+                }
+                var selectedBox = boxList.FirstOrDefault(x => x.MaxBox == bestFit);
+                if (selectedBox == null) break;
 
-                    int startRange = index + 1;
-                    int endRange = startRange + fullCartons - 1;
+                int maxBox = selectedBox.MaxBox;
+                int carton = selectedBox.Carton;
+                string cartonSize = cartonDetails.ContainsKey(carton) ? cartonDetails[carton] : "Unknown";
+                double cartonWeight = cartonWeightMapping.ContainsKey(carton) ? cartonWeightMapping[carton] : 0;
+
+                int usedQuantity = Math.Min(remainingQuantity, maxBox);
+                double nwPerCarton = usedQuantity * netWeight;
+                double gwPerCarton = nwPerCarton + (12 * boxWeight) + (usedQuantity * coreWeight) + cartonWeight;
+
+                int startRange = index + 1;
+                int endRange = startRange + (usedQuantity / maxBox) - 1;
+                string description = FormatDescription(brand, dai, tex, ysbh, ma);
+
+                if (usedQuantity / maxBox > 1)
+                {
                     resultTable.Rows.Add(
                         $"{startRange}-{endRange}",
                         "Sample",
-                        string.Format( $"{brand} {dai} Tex{tex} {ysbh} {ma}"),
+                        description,
                         colorno,
                         maxBox,
                         usedQuantity,
                         Math.Round(gwPerCarton, 3),
                         Math.Round(nwPerCarton, 3),
-                        cartonDetails.ContainsKey(carton) ? cartonDetails[carton] : "Unknown",
+                        cartonSize,
                         ""
                     );
-
-                    remainingQuantity -= usedQuantity;
                     index = endRange;
                 }
-                // Case 2: Remaining quantity is larger than max
-                else if (remainingQuantity >= maxBox)
+                else
                 {
-                    double cartonWeight = cartonWeightMapping.ContainsKey(carton) ? cartonWeightMapping[carton] : 0;
-                    int fullCartons = remainingQuantity / maxBox;
-                    int usedQuantity = fullCartons * maxBox;
-                    double nwPerCarton = maxBox * netWeight;
-                    double gwPerCarton = nwPerCarton + (12 * boxWeight) + (maxBox * coreWeight) + cartonWeight;
-
-                    int startRange = index + 1;
-                    int endRange = startRange + fullCartons - 1;
-
                     resultTable.Rows.Add(
-                        $"{startRange}-{endRange}",
+                        $"{startRange}",
                         "Sample",
-                        string.Format($"{brand} {dai} Tex{tex} {ysbh} {ma}"),
+                        description,
                         colorno,
                         maxBox,
                         usedQuantity,
-                        Math.Round(gwPerCarton, 2),
-                        Math.Round(nwPerCarton, 2),
-                        cartonDetails.ContainsKey(carton) ? cartonDetails[carton] : "Unknown",
+                        Math.Round(gwPerCarton, 3),
+                        Math.Round(nwPerCarton, 3),
+                        cartonSize,
                         ""
                     );
-
-                    remainingQuantity -= usedQuantity;
-                    index = endRange;
+                    index = startRange;
                 }
 
-                // Handle last incomplete carton
-                if (partialCartonQuantity > 0 && partialCartonQuantity < maxBox)
-                {
-                    currentCartonIndex++;
-                    continue;
-                }
-
-                currentCartonIndex++;
+                remainingQuantity -= usedQuantity;
             }
-
             return resultTable;
         }
+        /// <summary>
+        /// format description
+        /// </summary>
+        /// <param name="brand"></param>
+        /// <param name="dai"></param>
+        /// <param name="tex"></param>
+        /// <param name="ysbh"></param>
+        /// <param name="ma"></param>
+        /// <returns></returns>
+        public static string FormatDescription(string brand, string dai, string tex, string ysbh, string ma)
+        {
+            string secondLine = $"Tex{tex}".PadRight(8) +
+                                ysbh.PadRight(3) +
+                                ma;
+            secondLine = secondLine.TrimEnd();
+            int secondLineLength = secondLine.Length;
 
+            if (brand.Length > secondLineLength)
+            {
+                secondLine = secondLine.PadRight(brand.Length);
+            }
+            int extraSpaces = secondLineLength - brand.Length - dai.Length;
+            int leftPadding = extraSpaces / 2;
+            int rightPadding = extraSpaces - leftPadding;
+            string firstLine = new string(' ', leftPadding) +
+                               brand +
+                               new string(' ', rightPadding) +
+                               dai;
 
+            return firstLine + "\n" + secondLine;
+        }
         private void ClearInputFields()
         {
         }
