@@ -19,7 +19,6 @@ namespace PackingListSample
     {
         private List<PackingListItem> packingListItems = new List<PackingListItem>();
         private BindingSource bindingSource = new BindingSource();
-        private int index = 0;
         int cartonIndex = 1;
         public MainForm()
         {
@@ -38,6 +37,7 @@ namespace PackingListSample
             dgvOutput.ReadOnly = false;
             bindingSource.DataSource = packingListItems;
             dgvOutput.DataSource = bindingSource;
+            dateTimePicker1.MinDate = DateTime.Today.AddDays(-3);
         }
         // Import XML functionality
         private void btnImportXML_Click(object sender, EventArgs e)
@@ -74,8 +74,10 @@ namespace PackingListSample
         {
             try
             {
+
                 
                 LoadDataTemp();
+                CheckValidInput();
                 DataTable dtFinish = new DataTable();
                 List<(string Item, int Quantity)> inputItems = new List<(string, int)>();
 
@@ -121,7 +123,7 @@ namespace PackingListSample
                 reportViewer1.ShowPageNavigationControls = true; // Hiển thị điều khiển chuyển trang
                 reportViewer1.ShowToolBar = true;
                 reportViewer1.RefreshReport();
-                index = 0;
+                cartonIndex = 1;
             }
             catch (Exception ex)
             {
@@ -143,7 +145,6 @@ namespace PackingListSample
             {
                 SqlCommand cmd = new SqlCommand(query_boxGroup, connection);
                 cmd.Connection.Open();
-                //cmd.ExecuteNonQuery();
                 SqlDataAdapter da = new SqlDataAdapter(cmd);
                 da.Fill(dt_boxGroup);
                 cmd.Connection.Close();
@@ -158,7 +159,6 @@ namespace PackingListSample
             {
                 SqlCommand cmd = new SqlCommand(query_WH_Box_Carton, connection);
                 cmd.Connection.Open();
-                //cmd.ExecuteNonQuery();
                 SqlDataAdapter da = new SqlDataAdapter(cmd);
                 da.Fill(dt_WH_Box_Carton);
                 cmd.Connection.Close();
@@ -182,7 +182,6 @@ namespace PackingListSample
             {
                 SqlCommand cmd = new SqlCommand(query_Daima, connection);
                 cmd.Connection.Open();
-                //cmd.ExecuteNonQuery();
                 SqlDataAdapter da = new SqlDataAdapter(cmd);
                 da.Fill(dt_Daima);
                 cmd.Connection.Close();
@@ -202,8 +201,8 @@ namespace PackingListSample
 
             for (int i = 0; i < 10; i++)
             {
-                string item = "PBPM5G" + i.ToString("D3"); // Định dạng 'iii' thành 3 chữ số (000, 001, ..., 019)
-                int quantity = rand.Next(100, 999); // Số lượng ngẫu nhiên từ 1 đến 10
+                string item = "PBPM5G" + i.ToString("D3");
+                int quantity = rand.Next(100, 999); 
 
                 dtInput.Rows.Add(item, quantity);
             }
@@ -213,46 +212,38 @@ namespace PackingListSample
         {
             DataTable dtResult = dtFinish.Clone();
 
-            var grouped = dtFinish.AsEnumerable()
-                .GroupBy(r => new
-                {
-                    Description = r["Description"].ToString(),
-                    ColorNo = r["ColorNo"].ToString(),
-                    SizeCTN = r["SizeCTN"].ToString()
-                });
-
-            foreach (var group in grouped)
+            foreach (DataRow row in dtFinish.Rows)
             {
-                int totalCartons = group.Sum(r => Convert.ToInt32(r["Carton"]));
-                string cartonRange = "";
-                if (totalCartons == 1)
-                {
-                    cartonRange = cartonIndex.ToString();
-                }
-                else
-                {
-                    cartonRange = $"{cartonIndex} - {cartonIndex + totalCartons - 1}";
-                }
+                int cartonCount = Convert.ToInt32(row["Carton"]);
+                string cartonRange = cartonCount == 1 ? cartonIndex.ToString()
+                                                      : $"{cartonIndex} - {cartonIndex + cartonCount - 1}";
 
-                // Lặp tất cả các dòng trong group nhưng dùng chung cartonRange
-                foreach (var row in group)
-                {
-                    DataRow newRow = dtResult.NewRow();
-                    newRow.ItemArray = row.ItemArray.Clone() as object[];
-                    newRow["Carton"] = cartonRange;
-                    dtResult.Rows.Add(newRow);
-                }
-                //chỉnh sửa cột carton ở last row bằng cartonIndex + totalCartons - 1
-                if (dtResult.Rows.Count > 1)
-                {
-                    dtResult.Rows[dtResult.Rows.Count - 1]["Carton"] = $"{cartonIndex + totalCartons - 1}";
-                }
+                DataRow newRow = dtResult.NewRow();
+                newRow.ItemArray = row.ItemArray.Clone() as object[];
+                newRow["Carton"] = cartonRange;
+                dtResult.Rows.Add(newRow);
 
-
-                cartonIndex += totalCartons;
+                cartonIndex += cartonCount;
             }
 
             return dtResult;
+        }
+
+        public static double CalculateCBM(int totalQty, int qty, string sizeCTN)
+        {
+            if (string.IsNullOrWhiteSpace(sizeCTN) || totalQty <= 0 || qty <= 0)
+                return 0;
+            string[] dimensions = sizeCTN.Split('*');
+            if (dimensions.Length != 3)
+                return 0;
+
+            if (!int.TryParse(dimensions[0], out int length) ||
+                !int.TryParse(dimensions[1], out int width) ||
+                !int.TryParse(dimensions[2], out int height))
+                return 0;
+            int totalCartons = totalQty / qty;
+            double cbmPerCarton = (length * width * height) / 1000000.0;
+            return cbmPerCarton * totalCartons;
         }
 
         public DataTable OptimizeBoxPacking(DataTable dt_WH_Box_Carton, DataTable dt_WH_Carton, DataTable dt_ProductData, DataTable dt_Daima, int Quantity, string boxgroup, string colorno)
@@ -268,17 +259,18 @@ namespace PackingListSample
             resultTable.Columns.Add("NetWeightPerCTN", typeof(double));
             resultTable.Columns.Add("SizeCTN", typeof(string));
             resultTable.Columns.Add("MemoNo", typeof(string));
+            resultTable.Columns.Add("Measurement", typeof(double));
             var productRow = dt_ProductData.AsEnumerable().FirstOrDefault(r => r.Field<string>("boxgroup") == boxgroup);
             if (productRow == null)
                 return resultTable;
             dt_WH_Box_Carton = dt_WH_Box_Carton
                 .AsEnumerable()
-                .GroupBy(r => new { BoxGroup = r["BoxGroup"].ToString(), Carton = Convert.ToInt32(r["Carton"]) }) // Nhóm theo BoxGroup & Carton
+                .GroupBy(r => new { BoxGroup = r["BoxGroup"].ToString(), Carton = Convert.ToInt32(r["Carton"]) })
                 .Select(g =>
                 {
-                    var firstRow = g.First(); // Lấy dòng đầu tiên làm mẫu
-                    firstRow["Min_Box"] = g.Min(r => Convert.ToInt32(r["Min_Box"])); // Min của Min_Box
-                    firstRow["Max_Box"] = g.Max(r => Convert.ToInt32(r["Max_Box"])); // Max của Max_Box
+                    var firstRow = g.First();
+                    firstRow["Min_Box"] = g.Min(r => Convert.ToInt32(r["Min_Box"]));
+                    firstRow["Max_Box"] = g.Max(r => Convert.ToInt32(r["Max_Box"]));
                     return firstRow;
                 })
                 .CopyToDataTable();
@@ -328,7 +320,7 @@ namespace PackingListSample
                     int carton = box.Carton;
                     string cartonSize = cartonDetails.ContainsKey(carton) ? cartonDetails[carton] : "Unknown";
                     double cartonWeight = cartonWeightMapping.ContainsKey(carton) ? cartonWeightMapping[carton] : 0;
-
+                    double measurement = 0;
                     int usedQuantity = 0;
                     double nwPerCarton = 0;
                     double gwPerCarton = 0; 
@@ -338,6 +330,7 @@ namespace PackingListSample
                         usedQuantity = maxBoxes * maxBox;
                         nwPerCarton = (usedQuantity / maxBoxes) * netWeight;
                         gwPerCarton = nwPerCarton + (12 * boxWeight) + ((usedQuantity / maxBoxes) * coreWeight) + cartonWeight;
+                        measurement = CalculateCBM(usedQuantity, maxBox, cartonSize.TrimEnd());
                         resultTable.Rows.Add(
                         $"{maxBoxes}",
                         "Sample",
@@ -348,7 +341,8 @@ namespace PackingListSample
                         Math.Round(gwPerCarton, 3),
                         Math.Round(nwPerCarton, 3),
                         cartonSize,
-                        ""
+                        "",
+                        measurement
                         );
                         int packQty = maxBoxes * box.MaxBox;
                         remaining -= packQty;
@@ -361,6 +355,7 @@ namespace PackingListSample
                         usedQuantity = remaining;
                         nwPerCarton = usedQuantity * netWeight;
                         gwPerCarton = nwPerCarton + (12 * boxWeight) + (usedQuantity * coreWeight) + cartonWeight;
+                        measurement = CalculateCBM(usedQuantity, usedQuantity, cartonSize.TrimEnd());
                         resultTable.Rows.Add(
                         $"{1}",
                         "Sample",
@@ -381,8 +376,6 @@ namespace PackingListSample
                 }
                 if (!packed)
                 {
-                    // Find the next larger box if no suitable box was found
-                    //làm tròn tăng lên 
                     int rounded = (int)Math.Ceiling((double)remaining / 10) * 10;
                     var sortedBoxes2 = boxList.OrderBy(box => box.MaxBox).ToList();
                     var largerBox = sortedBoxes2.FirstOrDefault(b => b.MinBox >= rounded);
@@ -396,7 +389,7 @@ namespace PackingListSample
                         double nwPerCarton = usedQuantity * netWeight;
                         double gwPerCarton = nwPerCarton + (12 * boxWeight) + (usedQuantity * coreWeight) + cartonWeight;
                         string description = FormatDescription(brand, dai, tex, ysbh, ma);
-
+                        double measurement = CalculateCBM(usedQuantity, usedQuantity, cartonSize.TrimEnd());
                         resultTable.Rows.Add(
                             $"{1}",
                             "Sample",
@@ -407,7 +400,8 @@ namespace PackingListSample
                             Math.Round(gwPerCarton, 3),
                             Math.Round(nwPerCarton, 3),
                             cartonSize,
-                            ""
+                            "",
+                            measurement
                         );
                         remaining = 0;
                     }
@@ -462,36 +456,42 @@ namespace PackingListSample
         private void ClearInputFields()
         {
         }
-
-        
-        private void GeneratePDFPreview(string filePath)
+        private void CheckValidInput()
         {
-            DataSet1 dataset = new DataSet1();
-            // Gán dữ liệu cho ReportViewer
-            reportViewer1.LocalReport.DataSources.Clear();
-            reportViewer1.LocalReport.ReportEmbeddedResource = "PackingListSample.PackingListReport.rdlc";
-            reportViewer1.LocalReport.DataSources.Add(new ReportDataSource("PackingListItem", dataset.Tables["PackingListItem"]));
-            reportViewer1.LocalReport.DataSources.Add(new ReportDataSource("PackingListData", dataset.PackingListData.AsEnumerable()));
-
-            reportViewer1.RefreshReport();
+            if (string.IsNullOrWhiteSpace(txtCusName.Text))
+            {
+                throw new Exception("Tên khách hàng không được để trống.");
+            }
+            if (string.IsNullOrWhiteSpace(txtCusNo.Text))
+            {
+                throw new Exception("Mã khách hàng không được để trống.");
+            }
+            //if (string.IsNullOrWhiteSpace(txtShipAdd.Text))
+            //{
+            //    throw new Exception("Địa chỉ giao hàng không được để trống.");
+            //}
+            if (dateTimePicker1.Value == DateTime.MinValue)
+            {
+                throw new Exception("Vui lòng chọn ngày hợp lệ.");
+            }
+            if (dgvInput.Rows.Count == 0 || dgvInput.Rows.Cast<DataGridViewRow>().All(row => row.IsNewRow))
+            {
+                throw new Exception("Bảng dữ liệu không được để trống.");
+            }
         }
+
         private DataSet1 LoadData(DataTable dtFinish)
         {
             DataSet1 dataset = new DataSet1();
             dataset.PackingListItem.Clear(); // Clear existing data
             dataset.PackingListItem.Merge(dtFinish); // Or ImportRow
             dataset.PackingListData.Rows.Add(
-                "LEADING STAR (CAMBODIA) GARMENT CO.",
-                "71PER111 /71LES11 []",
-                DateTime.Parse("03/11/2025"),
-                "Lot 447, Street 193DT, Phun PreySor Lech, Sangkat Prey Sor, Khan Dongkor",
-                "116235",
-                5000, // TotalQuantity
-                42,   // TotalPackings
-                693.00,  // NetWeight
-                877.74,  // GrossWeight
-                2.80     // Measurement
-            );
+                txtCusName.Text.TrimEnd(),
+                txtCusNo.Text.TrimEnd(),
+                dateTimePicker1.Value,
+                txtShipAdd.Text.TrimEnd(),
+                ""
+            ); ;
             return dataset;
         }
 
@@ -508,8 +508,6 @@ namespace PackingListSample
 
                 // Combine the application directory with the filename
                 string pdfFilePath = Path.Combine(appDirectory, pdfFileName);
-
-                GeneratePDFPreview(pdfFilePath);
             }
             catch (Exception ex)
             {

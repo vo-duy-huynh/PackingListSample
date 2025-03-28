@@ -19,5 +19,6 @@ namespace PackingListSample
         public double NetWeightPerCTN { get; set; }
         public string SizeCTN { get; set; }
         public string MemoNo { get; set; }
+        public double Measurement { get; set; }
     }
 }

@@ -13,11 +13,5 @@ namespace PackingListSample
         public DateTime ShippingDate { get; set; }
         public string ShippingAddress { get; set; }
         public string PackingListNo { get; set; }
-
-        public int TotalQuantity { get; set; }
-        public int TotalPackings { get; set; }
-        public double NetWeight { get; set; }
-        public double GrossWeight { get; set; }
-        public double Measurement { get; set; }
     }
 }

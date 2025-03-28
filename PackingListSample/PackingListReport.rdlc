@@ -252,7 +252,7 @@
               <Paragraph>
                 <TextRuns>
                   <TextRun>
-                    <Value>=First(Fields!TotalPackings.Value, "PackingListData")</Value>
+                    <Value>=Sum(Fields!TotalQtyCone.Value / Fields!QtyCone.Value, "PackingListItem")</Value>
                     <Style />
                   </TextRun>
                 </TextRuns>
@@ -348,7 +348,7 @@
               <Paragraph>
                 <TextRuns>
                   <TextRun>
-                    <Value>=First(Fields!Measurement.Value, "PackingListData")</Value>
+                    <Value>=Round(Sum(Fields!Measurement.Value, "PackingListItem"),2)</Value>
                     <Style />
                   </TextRun>
                 </TextRuns>
@@ -655,7 +655,6 @@
                         <PaddingBottom>2pt</PaddingBottom>
                       </Style>
                     </Textbox>
-                    <rd:Selected>true</rd:Selected>
                   </CellContents>
                 </TablixCell>
                 <TablixCell>
@@ -1740,7 +1739,7 @@
             <Paragraph>
               <TextRuns>
                 <TextRun>
-                  <Value>=First(Fields!ShippingDate.Value, "PackingListData")</Value>
+                  <Value>=Format(First(Fields!ShippingDate.Value, "PackingListData"), "MM/dd/yyyy")</Value>
                   <Style />
                 </TextRun>
               </TextRuns>
@@ -1833,7 +1832,7 @@
             <Paragraph>
               <TextRuns>
                 <TextRun>
-                  <Value>=Format(System.DateTime.Now, "dd/MM/yyyy")</Value>
+                  <Value>=Format(System.DateTime.Now, "MM/dd/yyyy")</Value>
                   <Style />
                 </TextRun>
               </TextRuns>
@@ -2008,7 +2007,7 @@
             <Paragraph>
               <TextRuns>
                 <TextRun>
-                  <Value>Bac Tan Yen District, Binh Duong Province, Vietnam</Value>
+                  <Value>Bac Tan Uyen District, Binh Duong Province, Vietnam</Value>
                   <Style>
                     <FontStyle>Normal</FontStyle>
                     <FontFamily>Times New Roman</FontFamily>
@@ -2284,7 +2283,7 @@
                 <Paragraph>
                   <TextRuns>
                     <TextRun>
-                      <Value>=First(Fields!TotalPackings.Value, "PackingListData")</Value>
+                      <Value>=Sum(Fields!TotalQtyCone.Value / Fields!QtyCone.Value, "PackingListItem")</Value>
                       <Style />
                     </TextRun>
                   </TextRuns>
@@ -2316,7 +2315,7 @@
                 <Paragraph>
                   <TextRuns>
                     <TextRun>
-                      <Value>=First(Fields!Measurement.Value, "PackingListData")</Value>
+                      <Value>=Round(Sum(Fields!Measurement.Value, "PackingListItem"),2)</Value>
                       <Style />
                     </TextRun>
                   </TextRuns>
@@ -2380,7 +2379,7 @@
                 <Paragraph>
                   <TextRuns>
                     <TextRun>
-                      <Value>=SUM(Fields!TotalQtyCone.Value, "PackingListItem")</Value>
+                      <Value>=Sum(Fields!TotalQtyCone.Value, "PackingListItem")</Value>
                       <Style />
                     </TextRun>
                   </TextRuns>
@@ -2534,6 +2533,10 @@
           <DataField>MemoNo</DataField>
           <rd:TypeName>System.String</rd:TypeName>
         </Field>
+        <Field Name="Measurement">
+          <DataField>Measurement</DataField>
+          <rd:TypeName>System.Double</rd:TypeName>
+        </Field>
       </Fields>
       <rd:DataSetInfo>
         <rd:DataSetName>DataSet1</rd:DataSetName>
@@ -2568,26 +2571,6 @@
         </Field>
         <Field Name="PackingListNo">
           <DataField>PackingListNo</DataField>
-          <rd:TypeName>System.String</rd:TypeName>
-        </Field>
-        <Field Name="TotalQuantity">
-          <DataField>TotalQuantity</DataField>
-          <rd:TypeName>System.Int32</rd:TypeName>
-        </Field>
-        <Field Name="TotalPackings">
-          <DataField>TotalPackings</DataField>
-          <rd:TypeName>System.Int32</rd:TypeName>
-        </Field>
-        <Field Name="NetWeight">
-          <DataField>NetWeight</DataField>
-          <rd:TypeName>System.Double</rd:TypeName>
-        </Field>
-        <Field Name="GrossWeight">
-          <DataField>GrossWeight</DataField>
-          <rd:TypeName>System.Double</rd:TypeName>
-        </Field>
-        <Field Name="Measurement">
-          <DataField>Measurement</DataField>
           <rd:TypeName>System.String</rd:TypeName>
         </Field>
       </Fields>
